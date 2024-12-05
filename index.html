@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>당신의 머리길이는?</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+        }
+        #webcam-container {
+            width: 320px;
+            height: 240px;
+            margin-bottom: 20px;
+        }
+        #status {
+            font-weight: bold;
+            margin-top: 10px;
+        }
+        #start-button {
+            margin-bottom: 20px;
+            padding: 10px 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>당신의 머리길이는?</h1>
+    <button id="start-button">시작하기</button>
+    <div id="webcam-container"></div>
+    <div id="status">머리 길이를 감지하세요.</div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
+    <script>
+        const URL = "https://teachablemachine.withgoogle.com/models/7_3fsWx6F/"; // 티처블 모델 URL
+        let model, webcam, maxPredictions;
+
+        const startButton = document.getElementById('start-button');
+        startButton.addEventListener('click', async function() {
+            const testUtterance = new SpeechSynthesisUtterance('당신의 머리길이 분류를 시작합니다');
+            testUtterance.lang = 'ko-KR';
+            window.speechSynthesis.speak(testUtterance);
+
+            await init();
+            startButton.style.display = 'none';
+        });
+
+        async function init() {
+            const modelURL = URL + "model.json";
+            const metadataURL = URL + "metadata.json";
+
+            try {
+                model = await tmImage.load(modelURL, metadataURL);
+                console.log("모델이 정상적으로 로드되었습니다.");
+                maxPredictions = model.getTotalClasses();
+            } catch (error) {
+                console.error("모델 로드 실패:", error);
+                document.getElementById("status").innerHTML = "모델 로드에 실패했습니다.";
+                return;
+            }
+
+            const flip = true; // 좌우 반전
+            webcam = new tmImage.Webcam(320, 240, flip);
+            await webcam.setup();
+            await webcam.play();
+            window.requestAnimationFrame(loop);
+
+            document.getElementById("webcam-container").appendChild(webcam.canvas);
+        }
+
+        async function loop() {
+            webcam.update();
+            await predict();
+            window.requestAnimationFrame(loop);
+        }
+
+        async function predict() {
+            const predictions = await model.predict(webcam.canvas);
+            console.log("예측 결과:", predictions);
+
+            const maxClass = predictions.reduce((prev, current) => 
+                (prev.probability > current.probability) ? prev : current
+            );
+
+            const statusDiv = document.getElementById("status");
+            if (maxClass.className === "숏컷") {
+                statusDiv.innerHTML = "머리 길이: 숏컷입니다!";
+                speakMessage("머리 길이 숏컷입니다!");
+            } else if (maxClass.className === "단발") {
+                statusDiv.innerHTML = "머리 길이: 단발입니다!";
+                speakMessage("머리 길이 단발입니다!");
+            } else if (maxClass.className === "중단발") {
+                statusDiv.innerHTML = "머리 길이: 중단발입니다!";
+                speakMessage("머리 길이 중단발입니다!");
+            } else if (maxClass.className === "긴머리") {
+                statusDiv.innerHTML = "머리 길이: 긴머리입니다!";
+                speakMessage("머리 길이 긴머리입니다!");
+            } else {
+                statusDiv.innerHTML = "머리 길이를 인식할 수 없습니다.";
+            }
+        }
+
+        function speakMessage(message) {
+            const utterance = new SpeechSynthesisUtterance(message);
+            utterance.lang = 'ko-KR';
+            speechSynthesis.cancel();
+            speechSynthesis.speak(utterance);
+        }
+    </script>
+</body>
+</html>
